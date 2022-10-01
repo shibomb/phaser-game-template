@@ -1,0 +1,5 @@
+{
+  "livePreview.autoRefreshPreview": "On Changes to Saved Files",
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true
+}
