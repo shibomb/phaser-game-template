@@ -38,7 +38,7 @@ export default class GameOverScene extends AbstractScene {
     this.addText('left', 1, '<<[ESC]', {}, backOption)
 
     // game over
-    this.addText('center-center', 0, 'GAME OVER', {
+    this.addText('center-center', 0, 'TIME UP', {
       fontSize: 32,
     })
 
@@ -53,10 +53,28 @@ export default class GameOverScene extends AbstractScene {
     }
     this.addText(
       'center-center',
-      4,
+      5,
       'PRESS [SPACE] TO RESTART',
       {},
       restartOption
+    )
+
+    // score
+    const scoreData =
+      JSON.parse(localStorage.getItem('scoreData')) ?? this.scoreData
+    this.scoreText = this.addText(
+      'center-center',
+      2,
+      `SCORE: ${scoreData.current}`,
+      {},
+      {}
+    )
+    this.highScoreText = this.addText(
+      'center-center',
+      3,
+      `HIGH-SCORE: ${scoreData.high}`,
+      {},
+      {}
     )
 
     this.sceneIn()

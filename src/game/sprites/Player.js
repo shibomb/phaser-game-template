@@ -1,14 +1,13 @@
 import Phaser from '../../lib/phaser.js'
 
-import AbstractSprite from './AbstractSprite.js'
+import AbstractContainer from './AbstractContainer.js'
 
 const PREFIX = 'Player'
 
-export default class Player extends AbstractSprite {
+export default class Player extends AbstractContainer {
   // ----------------------------------------
   // static
   // ----------------------------------------
-
   static preload(scene) {
     const FUNC_NAME = 'preload'
     console.log(`${PREFIX}#${FUNC_NAME} [START]`)
@@ -59,7 +58,6 @@ export default class Player extends AbstractSprite {
   // ----------------------------------------
   // instance
   // ----------------------------------------
-
   /** @type {Phaser.Types.Input.Keyboard.CursorKeys} */
   cursors
 
@@ -73,63 +71,121 @@ export default class Player extends AbstractSprite {
    * @param {Phaser.Scene} scene
    * @param {number} x
    * @param {number} y
-   * @param {string} scale
    */
   constructor(scene, x, y) {
     const FUNC_NAME = 'constructor'
     console.log(`${PREFIX}#${FUNC_NAME} [START]`)
 
-    super(scene, x, y, `${PREFIX}_idle`, 0)
+    super(scene, x, y)
+
+    // ----------------------------------------
+    // スプライト設定
+    // ----------------------------------------
+
+    // ---------------
+    // メインスプライト
+    // ---------------
+    this.main = scene.add
+      .sprite(0, 0, `${PREFIX}_idle`, 0)
+      .play(`${PREFIX}_idle`)
+
+    this.main.setOrigin(0.5, 1)
+    this.main.setScale((scene.scale.width / this.main.displayWidth) * (1 / 12))
+
+    this.add(this.main)
+
+    // ---------------
+    // デバッグ情報
+    // ---------------
+    this.isDebug = true
+    this.createDebugInfo()
+
+    // ----------------------------------------
+    // 物理エンジン設定
+    // ----------------------------------------
+    scene.physics.world.enable(this)
+
+    // body範囲を調整
+    /** @type {Phaser.Physics.Arcade.Body} */
+    const body = this.body
+    body.setSize(this.main.displayWidth * 0.75, this.main.displayHeight * 0.75)
+    body.setOffset(
+      body.width * -this.main.originX,
+      body.height * -this.main.originY
+    )
+
+    // ----------------------------------------
+    // 設定リセット
+    // ----------------------------------------
     this.init()
 
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
   }
 
+  /**
+   * 設定リセット
+   */
   init() {
     const FUNC_NAME = 'init'
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`)
 
-    // sprite setup
-    this.play(`${PREFIX}_idle`)
-    this.setScaleAgaintSceneWidth(1 / 12)
-    this.scene.physics.world.enable(this)
-
     // moving data
     this.#movingData = {
-      mode: 'inertia', // 'direct' or 'inertia'
-      acceleration: { x: 0, y: 0 },
-      accelerationMax: { x: 200, y: 200 },
-      additional: { x: 5, y: 5 }, // for inertia mode only.
+      // mode: 'direct',
+      mode: 'inertia',
+      velocity: { x: 0, y: 0 }, // 速度
+      velocityMax: { x: 200, y: 200 }, // 最大速度
+      acceleration: { x: 5, y: 5 }, //  for inertia mode only. 加速度
       decelerationRate: { x: 0.98, y: 0.98 }, // for inertia mode only. no deceleration { x: 1, y: 1 }
     }
 
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
   }
 
-  update(time, delta) {
-    // const FUNC_NAME = 'update'
+  /**
+   * 更新前処理
+   *
+   * @param {number} time
+   * @param {number} delta
+   */
+  preUpdate(time, delta) {
+    const FUNC_NAME = 'preUpdate'
     // console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`, [time, delta])
 
-    // calc
-    this.#updateByController(time, delta)
+    this.setDebugInfo(null) // reset debug info
 
-    // move
-    this.setVelocityX(this.#movingData.acceleration.x)
-    this.setVelocityY(this.#movingData.acceleration.y)
+    /** @type {Phaser.Physics.Arcade.Body} */
+    const body = this.body
+
+    // 計算
+    this.#updateMovingData(time, delta)
+
+    // 移動
+    body.setVelocityX(this.#movingData.velocity.x)
+    body.setVelocityY(this.#movingData.velocity.y)
 
     this.horizontalWrap()
     this.verticalWrap()
 
-    // set animation
-    if (this.body.velocity.x != 0 || this.body.velocity.y != 0) {
-      this.anims.play(`${PREFIX}_move`, true)
-      this.setFlipX(this.body.velocity.x < 0)
+    // スプライトの見た目を変更
+    if (body.velocity.x == 0 && body.velocity.y == 0) {
+      this.main.anims.play(`${PREFIX}_idle`, true)
     } else {
-      this.anims.play(`${PREFIX}_idle`, true)
+      this.main.anims.play(`${PREFIX}_move`, true)
+      this.main.setFlipX(body.velocity.x < 0)
     }
+
+    this.addDebugInfo([this.CLASS_NAME, `x=${this.x}`, `y=${this.y}`])
+
+    // console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
   }
 
-  #updateByController(time, delta) {
+  /**
+   * 移動データ更新
+   * @param {number} time
+   * @param {number} delta
+   */
+  #updateMovingData(time, delta) {
     const inputDirection = this.scene.keyboardController.direction()
     const inputShift = this.scene.keyboardController.shift()
     const inputSpace = this.scene.keyboardController.space()
@@ -137,40 +193,40 @@ export default class Player extends AbstractSprite {
 
     const md = this.#movingData
 
-    // --------------------
+    // ----------------------------------------
     // direct mode
-    // --------------------
+    // ----------------------------------------
     if (md.mode == 'direct') {
-      md.acceleration.x = md.accelerationMax.x * inputDirection.x
-      md.acceleration.y = md.accelerationMax.y * inputDirection.y
+      md.velocity.x = md.velocityMax.x * inputDirection.x
+      md.velocity.y = md.velocityMax.y * inputDirection.y
 
       // sample: shift slow
       if (inputShift) {
-        md.acceleration.x *= inputShift ? 0.5 : 1
-        md.acceleration.y *= inputShift ? 0.5 : 1
+        md.velocity.x *= inputShift ? 0.5 : 1
+        md.velocity.y *= inputShift ? 0.5 : 1
       }
       // sample: ctrl turbo
       else if (inputCtrl) {
-        md.acceleration.x *= inputCtrl ? 2 : 1
-        md.acceleration.y *= inputCtrl ? 2 : 1
+        md.velocity.x *= inputCtrl ? 2 : 1
+        md.velocity.y *= inputCtrl ? 2 : 1
       }
 
       return
     }
 
-    // --------------------
+    // ----------------------------------------
     // inertia mode
-    // --------------------
+    // ----------------------------------------
 
     // sample: shift slow
     if (inputShift) {
-      md.accelerationMax = { x: 100, y: 100 }
+      md.velocityMax = { x: 100, y: 100 }
     }
     // sample: ctrl turbo
     else if (inputCtrl) {
-      md.accelerationMax = { x: 800, y: 800 }
+      md.velocityMax = { x: 800, y: 800 }
     } else {
-      md.accelerationMax = { x: 200, y: 200 }
+      md.velocityMax = { x: 200, y: 200 }
     }
 
     // sample: space no stop
@@ -181,45 +237,45 @@ export default class Player extends AbstractSprite {
     }
 
     if (inputDirection.x == 0) {
-      if (Math.abs(md.acceleration.x) > md.additional.x) {
-        md.acceleration.x = md.acceleration.x * md.decelerationRate.x
+      if (Math.abs(md.velocity.x) > md.acceleration.x) {
+        md.velocity.x = md.velocity.x * md.decelerationRate.x
       } else {
-        md.acceleration.x = 0
+        md.velocity.x = 0
       }
     } else {
       if (
-        (inputDirection.x == -1 && md.acceleration.x > 0) ||
-        (inputDirection.x == 1 && md.acceleration.x < 0) ||
-        Math.abs(md.acceleration.x) > md.accelerationMax.x
+        (inputDirection.x == -1 && md.velocity.x > 0) ||
+        (inputDirection.x == 1 && md.velocity.x < 0) ||
+        Math.abs(md.velocity.x) > md.velocityMax.x
       ) {
-        md.acceleration.x = md.acceleration.x * md.decelerationRate.x
+        md.velocity.x = md.velocity.x * md.decelerationRate.x
       }
 
-      md.acceleration.x +=
-        Math.abs(md.acceleration.x + md.additional.x * inputDirection.x) <=
-        md.accelerationMax.x
-          ? md.additional.x * inputDirection.x
+      md.velocity.x +=
+        Math.abs(md.velocity.x + md.acceleration.x * inputDirection.x) <=
+        md.velocityMax.x
+          ? md.acceleration.x * inputDirection.x
           : 0
     }
 
     if (inputDirection.y == 0) {
-      if (Math.abs(md.acceleration.y) > md.additional.y) {
-        md.acceleration.y = md.acceleration.y * md.decelerationRate.y
+      if (Math.abs(md.velocity.y) > md.acceleration.y) {
+        md.velocity.y = md.velocity.y * md.decelerationRate.y
       } else {
-        md.acceleration.y = 0
+        md.velocity.y = 0
       }
     } else {
       if (
-        (inputDirection.y == -1 && md.acceleration.y > 0) ||
-        (inputDirection.y == 1 && md.acceleration.y < 0) ||
-        Math.abs(md.acceleration.y) > md.accelerationMax.y
+        (inputDirection.y == -1 && md.velocity.y > 0) ||
+        (inputDirection.y == 1 && md.velocity.y < 0) ||
+        Math.abs(md.velocity.y) > md.velocityMax.y
       ) {
-        md.acceleration.y = md.acceleration.y * md.decelerationRate.y
+        md.velocity.y = md.velocity.y * md.decelerationRate.y
       }
-      md.acceleration.y +=
-        Math.abs(md.acceleration.y + md.additional.y * inputDirection.y) <=
-        md.accelerationMax.y
-          ? md.additional.y * inputDirection.y
+      md.velocity.y +=
+        Math.abs(md.velocity.y + md.acceleration.y * inputDirection.y) <=
+        md.velocityMax.y
+          ? md.acceleration.y * inputDirection.y
           : 0
     }
   }

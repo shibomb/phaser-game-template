@@ -1,11 +1,62 @@
 import Phaser from '../../lib/phaser.js'
 
-export default class AbstractSprite extends Phaser.Physics.Arcade.Sprite {
+export default class AbstractContainer extends Phaser.GameObjects.Container {
   get CLASS_NAME() {
     return this.constructor.name
   }
 
+  /** @type {Phaser.Arcade.Sprite} */
+  main
+
+  /** @type {boolean} */
+  isDebug = true
+
+  /** @type {Phaser.GameObjects.Text} */
+  debugInfo
+
   /**
+   *
+   */
+  createDebugInfo() {
+    if (!this.isDebug) return
+
+    const styleOption = {
+      fontFamily: '"Press Start 2P"',
+      fontSize: 9,
+      color: '#0f0',
+    }
+
+    this.debugInfo = this.scene.add.text(
+      this.main.displayWidth * this.main.originX,
+      this.main.displayHeight * -this.main.originY,
+      [this.CLASS_NAME],
+      styleOption
+    )
+
+    this.add(this.debugInfo)
+  }
+
+  setDebugInfo(text) {
+    if (!this.isDebug) return
+
+    this.debugInfo.setText(text)
+  }
+
+  addDebugInfo(text) {
+    if (!this.isDebug) return
+
+    let original = this.debugInfo.text
+    if (text instanceof Array) {
+      text.unshift(original)
+      this.debugInfo.setText(text)
+    } else {
+      this.debugInfo.setText([original, text])
+    }
+  }
+
+  /**
+   * 画面サイズとスプライトのサイズを比率で調整します。
+   *
    * @param {*} scale
    */
   setScaleAgaintSceneWidth(scale) {
@@ -18,13 +69,15 @@ export default class AbstractSprite extends Phaser.Physics.Arcade.Sprite {
   }
 
   /**
+   * 画面サイズとスプライトのサイズを比率で調整します。
+   *
    * @param {*} scale
    */
   setScaleAgaintSceneHeight(scale) {
     const FUNC_NAME = 'setScaleAgaintSceneHeight'
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`)
 
-    this.setScale((this.scene.scale.height / this.displayHeight) * scale) //
+    this.setScale((this.scene.scale.height / displayHeight) * scale) //
 
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
   }

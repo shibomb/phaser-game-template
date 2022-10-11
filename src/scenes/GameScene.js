@@ -31,11 +31,26 @@ export default class GameScene extends AbstractScene {
   /** @type {Phaser.Physics.Arcade.Group} */
   bombs
 
-  // /** @type {Phaser.Physics.Arcade.Group} */
-  // carrots
+  /** @type {Phaser.Time.Clock} */
+  gameTimerLoop
 
-  // /** @type {Phaser.GameObjects.Text} */
-  // carrotsCollectedText
+  /** @type {number} */
+  gameTimer = 0
+
+  /** @type {Phaser.GameObjects.Text} */
+  gameTimerText
+
+  /** @type {any} */
+  scoreData = {
+    current: 0,
+    high: 0,
+  }
+
+  /** @type {Phaser.GameObjects.Text} */
+  scoreText
+
+  /** @type {Phaser.GameObjects.Text} */
+  highScoreText
 
   constructor() {
     const FUNC_NAME = 'constructor'
@@ -82,12 +97,20 @@ export default class GameScene extends AbstractScene {
     const FUNC_NAME = 'create'
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`, data)
 
-    const width = this.scale.width
-    const height = this.scale.height
+    // ----------------------------------------
+    // セーブデータをロード
+    // ----------------------------------------
+    this.scoreData =
+      JSON.parse(localStorage.getItem('scoreData')) ?? this.scoreData
 
-    //
-    this.keyboardController = new KeyboardController(this, '')
+    // ----------------------------------------
+    // 背景
+    // ----------------------------------------
+    this.cameras.main.setBackgroundColor('#000000')
 
+    // ----------------------------------------
+    // GUI
+    // ----------------------------------------
     // back
     const backOption = {
       hitKey: 'keydown-ESC',
@@ -98,200 +121,134 @@ export default class GameScene extends AbstractScene {
     }
     this.addText('left', 1, '<<[ESC]', {}, backOption)
 
-    // // title
-    // const titleImg = this.add.image(width * 0.5, height * 0.33, 'title')
-    // titleImg.setScale((width / titleImg.width) * 0.75)
+    this.gameTimerText = this.addText('right', 1, `TIME: 0`, {}, {})
 
-    // this.add.image(240, 320, 'background').setScrollFactor(1, 0)
+    this.scoreText = this.addText('center', 1, `SCORE: 0`, {}, {})
+    this.highScoreText = this.addText(
+      'center',
+      2,
+      `HIGH-SCORE: ${this.scoreData.high}`,
+      {},
+      {}
+    )
 
-    // this.physics.add.image(240, 320, 'player_idle1').setScale(0.5)
-    // // create the group
-    // this.platforms = this.physics.add.staticGroup()
-    // // then create 5 plaforms from the group
-    // for (let i = 0; i < 5; i++) {
-    //   const x = Phaser.Math.Between(80, 400)
-    //   const y = 150 * i
-    //   /** @type {Phaser.Physics.Arcade.Sprite} */
-    //   const platform = this.platforms.create(x, y, 'platform')
-    //   platform.scale = 0.5
-    //   /** @type {Phaser.Physics.Arcade.StaticBody} */
-    //   const body = platform.body
-    //   body.updateFromGameObject()
-    // }
+    // ----------------------------------------
+    // スプライト
+    // ----------------------------------------
 
+    // --------------------
     // create the players
+    this.keyboardController = new KeyboardController(this, '')
     this.players = this.physics.add.group()
-    this.players.add(new Player(this, width * (1 / 2), height * (1 / 2)), true)
+    if (true) {
+      const player = new Player(
+        this,
+        this.scale.width * (1 / 2),
+        this.scale.height * (1 / 2)
+      )
+      this.add.existing(player)
 
+      this.players.add(player)
+
+      player.init()
+    }
+
+    // --------------------
     // create the bombs
     this.bombs = this.physics.add.group()
-    for (let i = 0; i < 10; i++) {
-      const bomb = new Bomb(
-        this,
-        Math.random() * width,
-        Math.random() * height,
-        1 / 12
-      )
-      this.bombs.add(bomb, true)
-    }
+    // add on game timer
+
+    // ----------------------------------------
+    // 物理エンジン
+    // ----------------------------------------
+
+    this.physics.world.addCollider(this.players, this.bombs)
     this.physics.world.addCollider(this.bombs, this.bombs)
 
-    // this.physics.add.collider(this.player)
-    // this.physics.add.collider(this.platforms, this.player)
-    // this.player.body.checkCollision.up = false
-    // this.player.body.checkCollision.left = false
-    // this.player.body.checkCollision.right = false
-    // // craete a carrots
-    // this.carrots = this.physics.add.group({ classType: Carrot })
-    // // this.carrots.get(240, 320, 'carrot')
-    // // add this collider
-    // this.physics.add.collider(this.platforms, this.carrots)
-    // // formatted this way to make it easier to read
-    // this.physics.add.overlap(
-    //   this.player,
-    //   this.carrots,
-    //   this.handleCollectCarrot, // called on overlap
-    //   undefined,
-    //   this
-    // )
-    // // camera settings
-    // this.cameras.main.startFollow(this.player)
-    // // set the horizontal dead zone to 1.5x game width
-    // this.cameras.main.setDeadzone(this.scale.width * 1.5)
-    // const style = { color: '#000', fontSize: 24 }
-    // this.carrotsCollectedText = this.add
-    //   .text(240, 10, 'Carrots: 0', style)
-    //   .setScrollFactor(0)
-    //   .setOrigin(0.5, 0)
+    this.physics.add.overlap(
+      this.players,
+      this.bombs,
+      this.handleHitPlayerAndBomb,
+      undefined,
+      this
+    )
 
+    // --------------------
+    // init
+    this.gameTimer = 0
+    this.scoreData.current = 0
+
+    this.gameTimerLoop = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        this.gameTimer++
+        this.gameTimerText.text = `TIME: ${this.gameTimer}`
+
+        if (this.gameTimer == 30) {
+          this.time.removeAllEvents()
+          localStorage.setItem('scoreData', JSON.stringify(this.scoreData))
+
+          this.sceneTo('game-over')
+        }
+
+        this.spawnBomb()
+      },
+      callbackScope: this,
+      loop: true,
+    })
+
+    // --------------------
+    //
     this.sceneIn()
     console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
   }
 
-  update(time, delta) {
-    // const FUNC_NAME = 'update'
-    // console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`)
+  update(time, delta) {}
 
-    this.players.getChildren().forEach((sprite) => {
-      sprite.update(time, delta)
-    })
+  /**
+   *
+   */
+  spawnBomb() {
+    const bomb = new Bomb(
+      this,
+      Math.random() * this.scale.width,
+      Math.random() * this.scale.height
+    )
+    this.add.existing(bomb)
 
-    this.bombs.getChildren().forEach((sprite) => {
-      sprite.update(time, delta, this.players.getFirstAlive())
-    })
+    this.bombs.add(bomb)
 
-    // ----------
-    // player
-    // ----------
-    // const touchingDown = this.player.body.touching.down
-    // if (touchingDown) {
-    //   this.player.setVelocityY(-300)
-    //   // switch to jump texture
-    //   this.player.setTexture('bunny-jump')
-    //   // play jump sound
-    //   this.sound.play('jump')
-    // }
-    // const vy = this.player.body.velocity.y
-    // if (vy > 0 && this.player.texture.key !== 'bunny-stand') {
-    //   this.player.setTexture('bunny-stand')
-    // }
-    // this.horizontalWrap(this.player)
-
-    // // ----------
-    // // platform
-    // // ----------
-    // this.platforms.children.iterate((child) => {
-    //   /** @type {Phaser.Physics.Arcade.Sprite} */
-    //   const platform = child
-    //   const scrollY = this.cameras.main.scrollY
-    //   if (platform.y >= scrollY + 700) {
-    //     platform.y = scrollY - Phaser.Math.Between(50, 100)
-    //     platform.body.updateFromGameObject()
-    //     // create a carrot above the platform being reused
-    //     this.addCarrotAbove(platform)
-    //   }
-    // })
-    // // ----------
-    // // game over
-    // // ----------
-    // const bottomPlatform = this.findBottomMostPlatform()
-    // if (this.player.y > bottomPlatform.y + 200) {
-    //   // console.log('game over')
-    //   // add this...
-    //   this.scene.start('game-over')
-    // }
+    // body操作系の処理は group add の後で呼び出す必要がある
+    bomb.setTarget(this.players.children.get(0))
+    bomb.init()
   }
 
-  // /**
-  //  * @param {Phaser.GameObjects.Sprite} sprite
-  //  */
-  // horizontalWrap(sprite) {
-  //   const halfWidth = sprite.displayWidth * 0.5
-  //   const gameWidth = this.scale.width
-  //   if (sprite.x < -halfWidth) {
-  //     sprite.x = gameWidth + halfWidth
-  //   } else if (sprite.x > gameWidth + halfWidth) {
-  //     sprite.x = -halfWidth
-  //   }
-  // }
+  /**
+   * @param {Player} player
+   * @param {Bomb} bomb
+   */
+  handleHitPlayerAndBomb(player, bomb) {
+    const FUNC_NAME = 'handleHitPlayerAndBomb'
+    console.log(`${this.CLASS_NAME}#${FUNC_NAME} [START]`)
 
-  // /**
-  //  * @param {Phaser.GameObjects.Sprite} sprite
-  //  */
-  // addCarrotAbove(sprite) {
-  //   const y = sprite.y - sprite.displayHeight
+    const nextSound = this.sound.add('next')
+    nextSound.play()
 
-  //   /** @type {Phaser.Physics.Arcade.Sprite} */
-  //   const carrot = this.carrots.get(sprite.x, y, 'carrot')
+    // hide from display
+    // and disable from physics world
+    this.bombs.killAndHide(bomb)
+    this.physics.world.disableBody(bomb.body)
 
-  //   // set active and visible
-  //   carrot.setActive(true)
-  //   carrot.setVisible(true)
+    // increment score by 1
+    this.scoreData.current++
+    if (this.scoreData.current > this.scoreData.high) {
+      this.scoreData.high = this.scoreData.current
+    }
 
-  //   this.add.existing(carrot)
+    // create new text value and set it
+    this.scoreText.text = `SCORE: ${this.scoreData.current}`
+    this.highScoreText.text = `HIGH-SCORE: ${this.scoreData.high}`
 
-  //   // update the physics body size
-  //   carrot.body.setSize(carrot.width, carrot.height)
-
-  //   // make sure body is enabed in the physics world
-  //   this.physics.world.enable(carrot)
-
-  //   return carrot
-  // }
-
-  // /**
-  //  * @param {Phaser.Physics.Arcade.Sprite} player
-  //  * @param {Carrot} carrot
-  //  */
-  // handleCollectCarrot(player, carrot) {
-  //   // hide from display
-  //   this.carrots.killAndHide(carrot)
-
-  //   // disable from physics world
-  //   this.physics.world.disableBody(carrot.body)
-
-  //   // increment by 1
-  //   this.carrotsCollected++
-
-  //   // create new text value and set it
-  //   const value = `Carrots: ${this.carrotsCollected}`
-  //   this.carrotsCollectedText.text = value
-  // }
-
-  // findBottomMostPlatform() {
-  //   const platforms = this.platforms.getChildren()
-  //   let bottomPlatform = platforms[0]
-
-  //   for (let i = 1; i < platforms.length; ++i) {
-  //     const platform = platforms[i]
-
-  //     // discard any platforms that are above current
-  //     if (platform.y < bottomPlatform.y) {
-  //       continue
-  //     }
-
-  //     bottomPlatform = platform
-  //   }
-  //   return bottomPlatform
-  // }
+    console.log(`${this.CLASS_NAME}#${FUNC_NAME} [FINISHED]`)
+  }
 }

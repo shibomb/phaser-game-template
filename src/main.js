@@ -12,12 +12,13 @@ const config = {
   type: Phaser.AUTO,
   width: GameConfig.width,
   height: GameConfig.height,
+  backgroundColor: GameConfig.backgroundColor,
   parent: 'app',
   scale: {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     mode: Phaser.Scale.FIT,
   },
-  pixelArt: false,
+  pixelArt: true,
   scene: [LoadingScene, TitleScene, GameScene, GameOverScene, CreditScene],
   physics: {
     default: 'arcade',
