@@ -97,7 +97,7 @@ export default class Player extends AbstractContainer {
     // ---------------
     // デバッグ情報
     // ---------------
-    this.isDebug = true
+    this.isDebug = false
     this.createDebugInfo()
 
     // ----------------------------------------

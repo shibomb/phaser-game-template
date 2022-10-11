@@ -75,7 +75,7 @@ export default class Bomb extends AbstractContainer {
     // ---------------
     // デバッグ情報
     // ---------------
-    this.isDebug = true
+    this.isDebug = false
     this.createDebugInfo()
 
     // ----------------------------------------
